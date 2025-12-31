@@ -1,29 +1,64 @@
-import hashlib
-import getpass
+#!/bin/bash
 
-# Simple user database (username: hashed_password)
-users = {
-    "admin": hashlib.sha256("password123".encode()).hexdigest(),
-    "user1": hashlib.sha256("letmein".encode()).hexdigest()
+USER_DB="users.db"
+
+# Ensure database exists
+touch "$USER_DB"
+
+hash_password() {
+    echo -n "$1" | sha256sum | awk '{print $1}'
 }
 
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+register() {
+    read -p "Choose a username: " username
 
-def login():
-    username = input("Username: ")
-    password = getpass.getpass("Password: ")
+    if grep -q "^$username:" "$USER_DB"; then
+        echo "User already exists."
+        return
+    fi
 
-    if username not in users:
-        print("❌ User does not exist")
-        return False
+    read -s -p "Choose a password: " password
+    echo
+    read -s -p "Confirm password: " confirm
+    echo
 
-    if users[username] == hash_password(password):
-        print("✅ Login successful!")
-        return True
-    else:
-        print("❌ Incorrect password")
-        return False
+    if [[ "$password" != "$confirm" ]]; then
+        echo "Passwords do not match."
+        return
+    fi
 
-# Run login
-login()
+    hashed=$(hash_password "$password")
+    echo "$username:$hashed" >> "$USER_DB"
+    echo "User registered successfully."
+}
+
+login() {
+    read -p "Username: " username
+    read -s -p "Password: " password
+    echo
+
+    stored_hash=$(grep "^$username:" "$USER_DB" | cut -d':' -f2)
+
+    if [[ -z "$stored_hash" ]]; then
+        echo "Invalid username or password."
+        return
+    fi
+
+    input_hash=$(hash_password "$password")
+
+    if [[ "$input_hash" == "$stored_hash" ]]; then
+        echo "Login successful. Welcome, $username!"
+    else
+        echo "Invalid username or password."
+    fi
+}
+
+echo "1) Register"
+echo "2) Login"
+read -p "Select an option: " choice
+
+case $choice in
+    1) register ;;
+    2) login ;;
+    *) echo "Invalid option." ;;
+esac
